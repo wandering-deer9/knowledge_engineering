@@ -1,9 +1,2 @@
 from_uid,to_uid,relation,中文称谓
-孙悟空,唐僧,apprentice,大师兄（功德圆满）
-猪八戒,唐僧,apprentice,二师兄（戒色成功）
-沙僧,唐僧,apprentice,三师兄（低调王者）
-白龙马,唐僧,mount,八百里龙马变小弟
-孙悟空,玉帝,eternal_enemy,曾经大闹天宫的叛徒
-牛魔王,孙悟空,former_brother,前结拜大哥（已翻脸）
-红孩儿,观音菩萨,apprentice,善财童子（火系退役）
-铁扇公主,牛魔王,ex_wife,前妻（独守空闺）
+孙悟空,唐僧,apprentice,成果
