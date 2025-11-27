@@ -1,0 +1,15 @@
+{
+  "neo4j": {
+    "uri": "bolt://localhost:7687",
+    "user": "neo4j",
+    "password": "12345678"
+  },
+  "webhook_port": 5000,
+  "notify": {
+    "type": "feishu",  
+    "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/13929211-1f12-46ed-a4c6-fbdf141ff823"
+  },
+  "data_source": "local_folder",
+  "repo": "E:/zijie/neo4j-community-2025.10.1/import",
+  "branch": "main"
+}
