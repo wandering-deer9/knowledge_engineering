@@ -1,9 +1,2 @@
-from_uid,to_uid,relation,中文称谓
-孙悟空,如来佛祖,eternal_enemy,哇靠哇卡卡卡快快快
-猪八戒,王母娘娘,former_criminal,偷吃蟠桃头号罪犯
-牛魔王,铁扇公主,ex_husband,前夫（已伏诛）
-红孩儿,孙悟空,former_nephew,前侄子（已出家）
-玉帝,孙悟空,former_boss,曾经下令通缉的大boss
-观音菩萨,红孩儿,master,善财童子（火系退役）
-孙悟空,菩提老祖,former_master,曾经的启蒙恩师
-二郎神,孙悟空,rival,曾经打成平手的死对头
+uid,姓名
+孙悟空,斗战胜佛
