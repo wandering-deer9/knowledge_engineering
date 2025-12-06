@@ -1,4 +1,4 @@
-# preserve.py —— 终极精准明细版：人物+关系变更一条一条全报出来！
+# preserve.py —— 彻底修复版：关系必触发 + 精准推送 + 永不重复
 from neo4j import GraphDatabase
 import json, os, datetime, requests, glob, traceback, urllib.parse, hashlib, shutil
 
@@ -12,9 +12,13 @@ ARCHIVE_DIR = os.path.join(IMPORT_DIR, "已处理")
 os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
 def send_feishu(title, content):
-    payload = {"msg_type": "interactive",
-               "card": {"header": {"title": {"tag": "plain_text", "content": title}, "template": "red"},
-                        "elements": [{"tag": "markdown", "content": content}]}}
+    payload = {
+        "msg_type": "interactive",
+        "card": {
+            "header": {"title": {"tag": "plain_text", "content": title}, "template": "red"},
+            "elements": [{"tag": "markdown", "content": content}]
+        }
+    }
     try: requests.post(FEISHU_URL, json=payload, timeout=10)
     except: pass
 
@@ -48,9 +52,9 @@ def preserve():
             if current_hash == last_hash:
                 return
 
-            change_lines = []   # 存所有变更明细
+            change_lines = []
 
-            # 1. 人物变更（精准）
+            # 人物变更
             for pf in person_files:
                 result = session.run(f'''
                 LOAD CSV WITH HEADERS FROM "{safe_filename(pf)}" AS row
@@ -63,24 +67,17 @@ def preserve():
                 for r in result:
                     change_lines.append(f"人物 · {r['uid']}：`{r['old_name']}` → **{r['new_name']}**")
 
-            # 2. 关系变更（终极精准！每条新增/失效都报出来）
+            # 关系变更（彻底修复！删掉所有 // 注释）
             for rf in rel_files:
                 result = session.run(f'''
                 LOAD CSV WITH HEADERS FROM "{safe_filename(rf)}" AS row
                 MATCH (f:person {{uid: row.from_uid}}), (t:person {{uid: row.to_uid}})
-                
-                // 情况1：原来有这条关系，但称谓变了
                 OPTIONAL MATCH (f)-[old:西游关系图 {{relation: row.relation}}]->(t)
                   WHERE old.is_current = true AND coalesce(old.中文称谓, '') <> row.中文称谓
-                WITH f, t, row, old
                 SET old.is_current = false, old.valid_to = datetime()
-                
-                // 情况2：原来没有这条关系 → 新增
                 MERGE (f)-[r:西游关系图 {{relation: row.relation}}]->(t)
                 ON CREATE SET r.is_current = true, r.valid_from = datetime(), r.中文称谓 = row.中文称谓
                 ON MATCH  SET r.is_current = true, r.valid_from = datetime(), r.中文称谓 = row.中文称谓
-                
-                // 返回明细
                 WITH row, old
                 RETURN 
                   row.from_uid AS from_uid,
@@ -90,37 +87,31 @@ def preserve():
                   row.中文称谓 AS new_label,
                   CASE WHEN old IS NOT NULL THEN '称谓变更' ELSE '新增关系' END AS change_type
                 ''')
-                
                 for r in result:
                     if r['change_type'] == '新增关系':
                         change_lines.append(f"关系 · 新增：{r['from_uid']} —[{r['rel_type']}]→ {r['to_uid']} （称谓：{r['new_label']}）")
                     else:
                         change_lines.append(f"关系 · 修改：{r['from_uid']} —[{r['rel_type']}]→ {r['to_uid']} 称谓 `{r['old_label']}` → **{r['new_label']}**")
 
-            # 3. 发飞书（精准明细）
+            # 发飞书
             if change_lines:
                 lines = [f"知识已自动更新（{len(all_files)} 个文件，共 {len(change_lines)} 处变更）"] + change_lines
                 send_feishu("知识保鲜成功", "\n".join(lines))
             else:
                 send_feishu("知识已更新", f"检测到 {len(all_files)} 个文件变更，但无实质内容变化")
 
-            # 4. 归档
+            # 归档
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             for f in all_files:
                 shutil.move(f, os.path.join(ARCHIVE_DIR, f"{timestamp}_{os.path.basename(f)}"))
 
-            # 5. 更新哈希
+            # 更新哈希
             session.run("MERGE (h:FileHashTracker) SET h.hash = $hash", hash=current_hash)
 
     except Exception as e:
         send_feishu("保鲜崩溃", f"错误：\n```\n{traceback.format_exc()[-1800:]}\n```")
 
-# ========= 新增：每次保鲜都附上 Neo4j 地址 =========
 if __name__ == "__main__":
     preserve()
-    
-    # 自动推送 Neo4j 一键查看地址（本地或公网任选）
-    neo4j_url = "http://localhost:7474"  # 本地访问
-    # neo4j_url = "https://你的公网地址:7474"  # 如果你有公网或 ngrok 穿透
-    view_msg = f"知识保鲜已完成！\n一键查看最新图谱：\n{neo4j_url}"
-    send_feishu("保鲜完成", view_msg, "green")
+    neo4j_url = "http://localhost:7474"
+    send_feishu("保鲜完成", f"一键查看最新图谱：{neo4j_url}")
