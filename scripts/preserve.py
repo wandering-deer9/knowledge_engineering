@@ -2,6 +2,8 @@
 from neo4j import GraphDatabase
 import json, requests, os, datetime, traceback
 import tempfile
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # 加上这行，屏蔽黄色警告
 
 with open("config.json", encoding="utf-8") as f:
     config = json.load(f)
@@ -22,15 +24,15 @@ def send_feishu(title, content):
     except: pass
 
 def download_csv(filename):
-    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/{filename}"
-    print(f"尝试下载: {url}")  # 调试输出
-    r = requests.get(url)
+    url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/{filename}"
+    print(f"正在下载: {url}")
+    r = requests.get(url, verify=False, timeout=30)
     if r.status_code != 200:
-        raise Exception(f"下载失败：{filename} (状态码: {r.status_code}) - 检查文件名、网络或仓库文件是否存在")
+        raise Exception(f"下载失败：{filename}（HTTP {r.status_code}）")
     tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
     tmp.write(r.content)
     tmp.close()
-    print(f"下载成功: {filename}")  # 调试输出
+    print(f"下载成功: {filename}")
     return tmp.name
 
 def preserve():
