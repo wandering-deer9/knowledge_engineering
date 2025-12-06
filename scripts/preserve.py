@@ -4,7 +4,7 @@ import time
 import json, requests, os, datetime, traceback
 import tempfile
 import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # 加上这行，屏蔽黄色警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  
 
 with open("config.json", encoding="utf-8") as f:
     config = json.load(f)
@@ -12,10 +12,9 @@ with open("config.json", encoding="utf-8") as f:
 driver = GraphDatabase.driver(config["neo4j"]["uri"], auth=(config["neo4j"]["user"], config["neo4j"]["password"]))
 FEISHU_URL = config["notify"]["webhook_url"]
 
-# 你的 GitHub 仓库信息（已修复用户名和仓库名）
-GITHUB_USER = "wandering-deer9"  # 你的真实用户名
-GITHUB_REPO = "knowledge_engineering"  # 你的仓库名
-BRANCH = "main"  # 分支名
+GITHUB_USER = "wandering-deer9"  
+GITHUB_REPO = "knowledge_engineering"  
+BRANCH = "main"  
 
 def send_feishu(title, content):
     payload = {"msg_type": "interactive",
@@ -28,14 +27,14 @@ def download_csv(filename):
     url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
     print(f"正在下载: {url}")
     
-    for i in range(5):  # 最多重试 5 次
+    for i in range(5):  
         try:
-            # 关键：加 verify=False + 超时 + 重试
+
             r = requests.get(
                 url, 
-                verify=False,      # 防 SSL 错误
-                timeout=30,        # 超时 30 秒
-                headers={'User-Agent': 'Mozilla/5.0'}  # 伪装浏览器
+                verify=False,      
+                timeout=30,        
+                headers={'User-Agent': 'Mozilla/5.0'}  
             )
             if r.status_code == 200:
                 tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
@@ -57,13 +56,13 @@ def download_csv(filename):
 
 def preserve():
     try:
-        with driver.session() as session:  # 修复：添加 session 定义
-            person_path = download_csv("persons.csv")  # 假设文件名为 persons.csv
-            rel_path = download_csv("relationships.csv")  # 假设文件名为 relationships.csv
+        with driver.session() as session:  
+            person_path = download_csv("persons.csv")  
+            rel_path = download_csv("relationships.csv") 
 
             changes = []
 
-            # 更新人物（修复：用 row.name，假设 CSV 列名是 uid,name）
+            
             result = session.run(f'''
             LOAD CSV WITH HEADERS FROM "file:///{os.path.basename(person_path)}" AS row
             MERGE (p:person {{uid: row.uid}})
@@ -75,7 +74,7 @@ def preserve():
             for r in result:
                 changes.append(f"人物 · {r['row.uid']}：`{r['old']}` → **{r['new']}**")
 
-            # 更新关系（修复：用 row.中文称谓，如果 CSV 列名是 chinese_label，改成 row.chinese_label）
+
             session.run(f'''
             LOAD CSV WITH HEADERS FROM "file:///{os.path.basename(rel_path)}" AS row
             MATCH (f:person {{uid: row.from_uid}}), (t:person {{uid: row.to_uid}})
@@ -91,7 +90,7 @@ def preserve():
             else:
                 send_feishu("知识已同步", "GitHub 有更新，但无实质变更")
 
-            # 清理临时文件
+
             os.unlink(person_path)
             os.unlink(rel_path)
 
