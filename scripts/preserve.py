@@ -24,7 +24,7 @@ def send_feishu(title, content):
     except: pass
 
 def download_csv(filename):
-    url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/{filename}"
+    url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
     print(f"正在下载: {url}")
     r = requests.get(url, verify=False, timeout=30)
     if r.status_code != 200:
