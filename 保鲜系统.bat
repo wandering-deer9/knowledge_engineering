@@ -1,13 +1,12 @@
 @echo off
 chcp 65001 >nul
-title 一键启动全宇宙保鲜系统 - 专为 knowledge_engineering 定制
+title 一键启动保鲜系统
 color 0A
 
 echo.
 echo  ╔═══════════════════════════════════════════╗
-echo  ║      全宇宙最强保鲜系统 启动中...         ║
+echo  ║      保鲜系统 启动中...         ║
 echo  ║   扔CSV到 import 文件夹 → 10秒自动更新    ║
-echo  ║        git push 也行，全都能吃！          ║
 echo  ╚═══════════════════════════════════════════╝
 echo.
 
