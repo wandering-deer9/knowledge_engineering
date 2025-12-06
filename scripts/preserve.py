@@ -1,5 +1,6 @@
 # preserve.py —— 100% GitHub 数据源版（本地不放任何 CSV） - 修复版
 from neo4j import GraphDatabase
+import time
 import json, requests, os, datetime, traceback
 import tempfile
 import urllib3
@@ -26,14 +27,33 @@ def send_feishu(title, content):
 def download_csv(filename):
     url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
     print(f"正在下载: {url}")
-    r = requests.get(url, verify=False, timeout=30)
-    if r.status_code != 200:
-        raise Exception(f"下载失败：{filename}（HTTP {r.status_code}）")
-    tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
-    tmp.write(r.content)
-    tmp.close()
-    print(f"下载成功: {filename}")
-    return tmp.name
+    
+    for i in range(5):  # 最多重试 5 次
+        try:
+            # 关键：加 verify=False + 超时 + 重试
+            r = requests.get(
+                url, 
+                verify=False,      # 防 SSL 错误
+                timeout=30,        # 超时 30 秒
+                headers={'User-Agent': 'Mozilla/5.0'}  # 伪装浏览器
+            )
+            if r.status_code == 200:
+                tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
+                tmp.write(r.content)
+                tmp.close()
+                print(f"下载成功: {filename}")
+                return tmp.name
+            
+            print(f"第 {i+1} 次尝试失败，状态码: {r.status_code}")
+            
+        except Exception as e:
+            print(f"第 {i+1} 次连接失败: {str(e)}")
+        
+        if i < 4:
+            print("3 秒后重试...")
+            time.sleep(3)
+    
+    raise Exception(f"下载彻底失败：{filename}（多次尝试后仍无法连接）")
 
 def preserve():
     try:
