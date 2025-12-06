@@ -1,130 +1,80 @@
+# preserve.py —— 100% GitHub 数据源版（本地不放任何 CSV）
 from neo4j import GraphDatabase
-import json, os, datetime, requests, glob, traceback, urllib.parse, hashlib, shutil
+import json, requests, os, datetime, traceback
+import tempfile
 
-# ========= 读取配置 =========
 with open("config.json", encoding="utf-8") as f:
     config = json.load(f)
 
-driver = GraphDatabase.driver(
-    config["neo4j"]["uri"],
-    auth=(config["neo4j"]["user"], config["neo4j"]["password"])
-)
+driver = GraphDatabase.driver(config["neo4j"]["uri"], auth=(config["neo4j"]["user"], config["neo4j"]["password"]))
 FEISHU_URL = config["notify"]["webhook_url"]
-IMPORT_DIR = r"E:\zijie\neo4j-community-2025.10.1\import"
-ARCHIVE_DIR = os.path.join(IMPORT_DIR, "已处理")
-os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
-# ========= 飞书推送（固定颜色 + 时间戳防重复）=========
+# 改成你的 GitHub 仓库！
+GITHUB_USER = "milu"
+GITHUB_REPO = "xiyou-knowledge"
+BRANCH = "main"
+
 def send_feishu(title, content):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    payload = {
-        "msg_type": "interactive",
-        "card": {
-            "header": {
-                "title": {"tag": "plain_text", "content": f"{title} [{timestamp}]"},
-                "template": "turquoise"  # 醒目又不刺眼的颜色
-            },
-            "elements": [{"tag": "markdown", "content": content}]
-        }
-    }
-    try:
-        requests.post(FEISHU_URL, json=payload, timeout=10)
-    except:
-        pass
+    payload = {"msg_type": "interactive",
+               "card": {"header": {"title": {"tag": "plain_text", "content": title}, "template": "turquoise"},
+                        "elements": [{"tag": "markdown", "content": content}]}}
+    try: requests.post(FEISHU_URL, json=payload, timeout=10)
+    except: pass
 
-def safe_filename(f):
-    return f"file:///{urllib.parse.quote(os.path.basename(f), safe='')}"
-
-def get_current_file_hash():
-    files = [f for f in glob.glob(os.path.join(IMPORT_DIR, "*人物*.csv")) +
-                   glob.glob(os.path.join(IMPORT_DIR, "*关系*.csv")) if "已处理" not in f]
-    if not files:
-        return "empty"
-    h = hashlib.md5()
-    for f in sorted(files):
-        with open(f, "rb") as fp:
-            h.update(fp.read())
-        h.update(str(os.path.getmtime(f)).encode())
-    return h.hexdigest()
+def download_csv(filename):
+    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/{filename}"
+    r = requests.get(url)
+    if r.status_code != 200:
+        raise Exception(f"下载失败：{filename}")
+    tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
+    tmp.write(r.content)
+    tmp.close()
+    return tmp.name
 
 def preserve():
-    person_files = [f for f in glob.glob(os.path.join(IMPORT_DIR, "*人物*.csv")) if "已处理" not in f]
-    rel_files    = [f for f in glob.glob(os.path.join(IMPORT_DIR, "*关系*.csv")) if "已处理" not in f]
-    all_files = person_files + rel_files
-    
-    if not all_files:
-        return
-
-    current_hash = get_current_file_hash()
-
     try:
         with driver.session() as session:
-            last = session.run("MATCH (h:FileHashTracker) RETURN h.hash AS h").single()
-            last_hash = last["h"] if last else None
-            if current_hash == last_hash:
-                return
+            # 从 GitHub 下载最新 CSV
+            person_path = download_csv("人物.csv")
+            rel_path = download_csv("关系.csv")
 
-            change_lines = []
+            changes = []
 
-            # 人物变更
-            for pf in person_files:
-                result = session.run(f'''
-                LOAD CSV WITH HEADERS FROM "{safe_filename(pf)}" AS row
-                MATCH (p:person {{uid: row.uid}})
-                WITH p, row, p.name AS old_name
-                WHERE old_name <> row.姓名
-                SET p.name = row.姓名, p.is_current = true, p.valid_from = datetime()
-                RETURN row.uid AS uid, old_name, row.姓名 AS new_name
-                ''')
-                for r in result:
-                    change_lines.append(f"人物 · {r['uid']}：`{r['old_name']}` → **{r['new_name']}**")
+            # 更新人物
+            result = session.run(f'''
+            LOAD CSV WITH HEADERS FROM "file:///{os.path.basename(person_path)}" AS row
+            MERGE (p:person {{uid: row.uid}})
+            WITH p, row, p.name AS old
+            WHERE old <> row.姓名
+            SET p.name = row.姓名, p.updated_at = datetime()
+            RETURN row.uid, old, row.姓名 AS new
+            ''')
+            for r in result:
+                changes.append(f"人物 · {r['row.uid']}：`{r['old']}` → **{r['new']}**")
 
-            # 关系变更
-            for rf in rel_files:
-                result = session.run(f'''
-                LOAD CSV WITH HEADERS FROM "{safe_filename(rf)}" AS row
-                MATCH (f:person {{uid: row.from_uid}}), (t:person {{uid: row.to_uid}})
-                OPTIONAL MATCH (f)-[old:西游关系图 {{relation: row.relation}}]->(t)
-                  WHERE old.is_current = true AND coalesce(old.中文称谓, '') <> row.中文称谓
-                SET old.is_current = false, old.valid_to = datetime()
-                MERGE (f)-[r:西游关系图 {{relation: row.relation}}]->(t)
-                ON CREATE SET r.is_current = true, r.valid_from = datetime(), r.中文称谓 = row.中文称谓
-                ON MATCH  SET r.is_current = true, r.valid_from = datetime(), r.中文称谓 = row.中文称谓
-                WITH row, old
-                RETURN 
-                  row.from_uid AS from_uid,
-                  row.to_uid AS to_uid,
-                  row.relation AS rel_type,
-                  coalesce(old.中文称谓, '<无>') AS old_label,
-                  row.中文称谓 AS new_label,
-                  CASE WHEN old IS NOT NULL THEN '称谓变更' ELSE '新增关系' END AS change_type
-                ''')
-                for r in result:
-                    if r['change_type'] == '新增关系':
-                        change_lines.append(f"关系 · 新增：{r['from_uid']} —[{r['rel_type']}]→ {r['to_uid']} （称谓：{r['new_label']}）")
-                    else:
-                        change_lines.append(f"关系 · 修改：{r['from_uid']} —[{r['rel_type']}]→ {r['to_uid']} 称谓 `{r['old_label']}` → **{r['new_label']}**")
+            # 更新关系
+            session.run(f'''
+            LOAD CSV WITH HEADERS FROM "file:///{os.path.basename(rel_path)}" AS row
+            MATCH (f:person {{uid: row.from_uid}}), (t:person {{uid: row.to_uid}})
+            OPTIONAL MATCH (f)-[old:西游关系图 {{relation: row.relation}}]->(t) WHERE old.is_current = true
+            SET old.is_current = false
+            MERGE (f)-[r:西游关系图 {{relation: row.relation}}]->(t)
+            ON CREATE SET r.is_current = true, r.中文称谓 = row.中文称谓
+            ON MATCH  SET r.is_current = true, r.中文称谓 = row.中文称谓
+            ''')
 
-            # 发飞书
-            if change_lines:
-                lines = [f"知识已自动更新（{len(all_files)} 个文件，共 {len(change_lines)} 处变更）"] + change_lines
-                send_feishu("知识保鲜成功", "\n".join(lines))
+            if changes:
+                send_feishu("知识已自动同步", f"检测到 GitHub 更新，共 {len(changes)} 处变更：\n" + "\n".join(changes[:15]))
             else:
-                send_feishu("知识已更新", f"检测到 {len(all_files)} 个文件变更，但无实质内容变化")
+                send_feishu("知识已同步", "GitHub 有更新，但无实质变更")
 
-            # 归档
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            for f in all_files:
-                shutil.move(f, os.path.join(ARCHIVE_DIR, f"{timestamp}_{os.path.basename(f)}"))
-
-            # 更新哈希
-            session.run("MERGE (h:FileHashTracker) SET h.hash = $hash", hash=current_hash)
+            # 清理临时文件
+            os.unlink(person_path)
+            os.unlink(rel_path)
 
     except Exception as e:
-        send_feishu("保鲜崩溃", f"错误：\n```\n{traceback.format_exc()[-1800:]}\n```")
+        send_feishu("保鲜失败", f"错误：\n```\n{traceback.format_exc()[-1000:]}\n```")
 
-# ========= 每次保鲜都附上 Neo4j 地址 =========
 if __name__ == "__main__":
     preserve()
-    neo4j_url = "http://localhost:7474"
-    send_feishu("保鲜轮询完成", f"系统正常运行中\n一键查看最新图谱：{neo4j_url}")
+    send_feishu("保鲜完成", "最新图谱：http://localhost:7474")
