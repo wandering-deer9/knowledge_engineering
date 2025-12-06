@@ -1,4 +1,4 @@
-# preserve.py —— 100% GitHub 数据源版（本地不放任何 CSV） - 修复版
+
 from neo4j import GraphDatabase
 import time
 import json, requests, os, datetime, traceback
@@ -67,7 +67,7 @@ def preserve():
             LOAD CSV WITH HEADERS FROM "file:///{os.path.basename(person_path)}" AS row
             MERGE (p:person {{uid: row.uid}})
             WITH p, row, p.name AS old
-            WHERE old <> row.name  # 修复：用 row.name（英文列名）
+            WHERE old <> row.name
             SET p.name = row.name, p.updated_at = datetime()
             RETURN row.uid, old, row.name AS new
             ''')
