@@ -81,7 +81,7 @@ def preserve():
             OPTIONAL MATCH (f)-[old:西游关系图 {{relation: row.relation}}]->(t) WHERE old.is_current = true
             SET old.is_current = false
             MERGE (f)-[r:西游关系图 {{relation: row.relation}}]->(t)
-            ON CREATE SET r.is_current = true, r.中文称谓 = row.中文称谓  # 如果列名是 chinese_label，改成 row.chinese_label
+            ON CREATE SET r.is_current = true, r.中文称谓 = row.中文称谓  
             ON MATCH  SET r.is_current = true, r.中文称谓 = row.中文称谓
             ''')
 
