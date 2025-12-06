@@ -26,41 +26,39 @@ def send_feishu(title, content):
     except: pass
 
 def download_csv(filename):
-    url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
-    print(f"正在下载: {url}")
+    base_url = f"https://ghproxy.net/https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
+    print(f"正在加速下载: {base_url}")
     
-    for i in range(5):
+    for i in range(3): 
         try:
             r = requests.get(
-                url,
+                base_url,
                 verify=False,
                 timeout=30,
-                headers={'User-Agent': 'Mozilla/5.0'}
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             )
             if r.status_code == 200:
+
                 neo4j_import_dir = r"E:\zijie\neo4j-community-2025.10.1\import"
                 os.makedirs(neo4j_import_dir, exist_ok=True)
-                
-               
-                unique_name = f"github_{filename}_{uuid.uuid4().hex[:8]}.csv"
-                final_path = os.path.join(neo4j_import_dir, unique_name)
+                import uuid
+                final_path = os.path.join(neo4j_import_dir, f"github_{filename}_{uuid.uuid4().hex[:8]}.csv")
                 
                 with open(final_path, "wb") as f:
                     f.write(r.content)
                 
-                print(f"下载成功并保存到 Neo4j import 目录: {final_path}")
-                return final_path  # 返回完整路径，供 LOAD CSV 使用
-            
-            print(f"第 {i+1} 次尝试失败，状态码: {r.status_code}")
-            
+                print(f"下载成功！保存到: {final_path}")
+                return final_path
+            else:
+                print(f"第 {i+1} 次失败，状态码: {r.status_code}")
         except Exception as e:
             print(f"第 {i+1} 次连接失败: {str(e)}")
         
-        if i < 4:
+        if i < 2:
             print("3 秒后重试...")
             time.sleep(3)
     
-    raise Exception(f"下载彻底失败：{filename}（多次尝试后仍无法连接）")
+    raise Exception(f"下载彻底失败：{filename}（即使使用加速代理也无法连接）")
 
 def preserve():
     try:
