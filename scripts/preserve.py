@@ -2,6 +2,8 @@
 from neo4j import GraphDatabase
 import time
 import json, requests, os, datetime, traceback
+import os
+import uuid
 import tempfile
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  
@@ -27,21 +29,27 @@ def download_csv(filename):
     url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/import/{filename}"
     print(f"正在下载: {url}")
     
-    for i in range(5):  
+    for i in range(5):
         try:
-
             r = requests.get(
-                url, 
-                verify=False,      
-                timeout=30,        
-                headers={'User-Agent': 'Mozilla/5.0'}  
+                url,
+                verify=False,
+                timeout=30,
+                headers={'User-Agent': 'Mozilla/5.0'}
             )
             if r.status_code == 200:
-                tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
-                tmp.write(r.content)
-                tmp.close()
-                print(f"下载成功: {filename}")
-                return tmp.name
+                neo4j_import_dir = r"E:\zijie\neo4j-community-2025.10.1\import"
+                os.makedirs(neo4j_import_dir, exist_ok=True)
+                
+               
+                unique_name = f"github_{filename}_{uuid.uuid4().hex[:8]}.csv"
+                final_path = os.path.join(neo4j_import_dir, unique_name)
+                
+                with open(final_path, "wb") as f:
+                    f.write(r.content)
+                
+                print(f"下载成功并保存到 Neo4j import 目录: {final_path}")
+                return final_path  # 返回完整路径，供 LOAD CSV 使用
             
             print(f"第 {i+1} 次尝试失败，状态码: {r.status_code}")
             
