@@ -77,4 +77,4 @@ def preserve():
 
 if __name__ == "__main__":
     preserve()
-    send_feishu("保鲜完成", "最新图谱：http://localhost:7474")
+    send_feishu("保鲜完成", "最新图谱：http://localhost:7474/browser/")
