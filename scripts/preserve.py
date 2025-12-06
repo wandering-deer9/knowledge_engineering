@@ -113,7 +113,14 @@ def preserve():
             session.run("MERGE (h:FileHashTracker) SET h.hash = $hash", hash=current_hash)
 
     except Exception as e:
-        send_feishu("保鲜崩溃", f"文件未归档！\n```\n{traceback.format_exc()[-1800:]}\n```")
+        send_feishu("保鲜崩溃", f"错误：\n```\n{traceback.format_exc()[-1800:]}\n```")
 
+# ========= 新增：每次保鲜都附上 Neo4j 地址 =========
 if __name__ == "__main__":
     preserve()
+    
+    # 自动推送 Neo4j 一键查看地址（本地或公网任选）
+    neo4j_url = "http://localhost:7474"  # 本地访问
+    # neo4j_url = "https://你的公网地址:7474"  # 如果你有公网或 ngrok 穿透
+    view_msg = f"知识保鲜已完成！\n一键查看最新图谱：\n{neo4j_url}"
+    send_feishu("保鲜完成", view_msg, "green")
