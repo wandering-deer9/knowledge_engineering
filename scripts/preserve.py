@@ -1,33 +1,45 @@
-# preserve.py —— 彻底修复版：关系必触发 + 精准推送 + 永不重复
 from neo4j import GraphDatabase
 import json, os, datetime, requests, glob, traceback, urllib.parse, hashlib, shutil
 
+# ========= 读取配置 =========
 with open("config.json", encoding="utf-8") as f:
     config = json.load(f)
 
-driver = GraphDatabase.driver(config["neo4j"]["uri"], auth=(config["neo4j"]["user"], config["neo4j"]["password"]))
+driver = GraphDatabase.driver(
+    config["neo4j"]["uri"],
+    auth=(config["neo4j"]["user"], config["neo4j"]["password"])
+)
 FEISHU_URL = config["notify"]["webhook_url"]
 IMPORT_DIR = r"E:\zijie\neo4j-community-2025.10.1\import"
 ARCHIVE_DIR = os.path.join(IMPORT_DIR, "已处理")
 os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
+# ========= 飞书推送（固定颜色 + 时间戳防重复）=========
 def send_feishu(title, content):
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     payload = {
         "msg_type": "interactive",
         "card": {
-            "header": {"title": {"tag": "plain_text", "content": title}, "template": "red"},
+            "header": {
+                "title": {"tag": "plain_text", "content": f"{title} [{timestamp}]"},
+                "template": "turquoise"  # 醒目又不刺眼的颜色
+            },
             "elements": [{"tag": "markdown", "content": content}]
         }
     }
-    try: requests.post(FEISHU_URL, json=payload, timeout=10)
-    except: pass
+    try:
+        requests.post(FEISHU_URL, json=payload, timeout=10)
+    except:
+        pass
 
-def safe_filename(f): return f"file:///{urllib.parse.quote(os.path.basename(f), safe='')}"
+def safe_filename(f):
+    return f"file:///{urllib.parse.quote(os.path.basename(f), safe='')}"
 
 def get_current_file_hash():
-    files = [f for f in glob.glob(os.path.join(IMPORT_DIR, "*人物*.csv")) + 
+    files = [f for f in glob.glob(os.path.join(IMPORT_DIR, "*人物*.csv")) +
                    glob.glob(os.path.join(IMPORT_DIR, "*关系*.csv")) if "已处理" not in f]
-    if not files: return "empty"
+    if not files:
+        return "empty"
     h = hashlib.md5()
     for f in sorted(files):
         with open(f, "rb") as fp:
@@ -67,7 +79,7 @@ def preserve():
                 for r in result:
                     change_lines.append(f"人物 · {r['uid']}：`{r['old_name']}` → **{r['new_name']}**")
 
-            # 关系变更（彻底修复！删掉所有 // 注释）
+            # 关系变更
             for rf in rel_files:
                 result = session.run(f'''
                 LOAD CSV WITH HEADERS FROM "{safe_filename(rf)}" AS row
@@ -111,7 +123,8 @@ def preserve():
     except Exception as e:
         send_feishu("保鲜崩溃", f"错误：\n```\n{traceback.format_exc()[-1800:]}\n```")
 
+# ========= 每次保鲜都附上 Neo4j 地址 =========
 if __name__ == "__main__":
     preserve()
     neo4j_url = "http://localhost:7474"
-    send_feishu("保鲜完成", f"一键查看最新图谱：{neo4j_url}")
+    send_feishu("保鲜轮询完成", f"系统正常运行中\n一键查看最新图谱：{neo4j_url}")
