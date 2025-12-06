@@ -22,10 +22,10 @@ def send_feishu(title, content):
     except: pass
 
 def download_csv(filename):
-    url = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{BRANCH}/{filename}"
+    url = f"https://raw.githubusercontent.com/wandering-deer9/knowledge_engineering/main/{filename}"
     r = requests.get(url)
     if r.status_code != 200:
-        raise Exception(f"下载失败：{filename}")
+        raise Exception(f"下载失败：{filename}（检查文件名或网络）")
     tmp = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".csv")
     tmp.write(r.content)
     tmp.close()
@@ -33,10 +33,9 @@ def download_csv(filename):
 
 def preserve():
     try:
-        with driver.session() as session:
-            # 从 GitHub 下载最新 CSV
-            person_path = download_csv("人物.csv")
-            rel_path = download_csv("关系.csv")
+
+            person_path = download_csv("persons.csv")
+            rel_path = download_csv("relationships.csv")
 
             changes = []
 

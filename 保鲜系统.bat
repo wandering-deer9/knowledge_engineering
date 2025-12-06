@@ -30,12 +30,6 @@ echo  ████████████████████████�
 echo.
 echo     知识图谱实时地址（点一下就到）：
 echo     http://localhost:7474/browser/
-echo.
-echo     使用方法：
-echo     1. 把新 CSV 扔进 import 文件夹 → 10秒自动保鲜
-echo     2. 或者在 GitHub 改文件 → git push → 自动保鲜
-echo     两种方式都行，飞书都会精准提醒！
-echo.
-echo     你已达成：扔文件即更新，push即取经！
+
 echo.
 echo  按任意
